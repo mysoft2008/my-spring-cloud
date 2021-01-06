@@ -1,0 +1,81 @@
+server:
+  port: 9527
+
+spring:
+  application:
+    name: cloud-gateway
+  redis:
+    database: 1
+    host: 127.0.0.1
+    port: 6379
+    password:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true # 开启从注册中心动态创建路由的功能，利用微服务名称进行路由
+      routes:
+        - id: payment_route # 路由的id,没有规定规则但要求唯一,建议配合服务名
+          #匹配后提供服务的路由地址
+          #uri: http://localhost:8001
+          uri: lb://cloud-payment-service
+          predicates:
+            - Path=/payment/get/** # 断言，路径相匹配的进行路由
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: '#{@hostAddressKeyResolver}'
+                # 令牌桶每秒填充平均速率, 允许用户每秒处理多少个请求。
+                redis-rate-limiter.replenishRate: 1
+                # 令牌桶的容量，允许在1s内完成的最大请求数。
+                redis-rate-limiter.burstCapacity: 1
+                # 每次请求消耗令牌的数量
+                redis-rate-limiter.requestedTokens: 1
+
+        - id: payment_route1 # 路由的id,没有规定规则但要求唯一,建议配合服务名
+          #匹配后提供服务的路由地址
+          #uri: http://localhost:8001
+          uri: lb://cloud-provider-hystrix-payment
+          predicates:
+            - Path=/payment/hystrix/** # 断言，路径相匹配的进行路由
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: '#{@hostAddressKeyResolver}'
+                # 令牌桶每秒填充平均速率, 允许用户每秒处理多少个请求。
+                redis-rate-limiter.replenishRate: 1
+                # 令牌桶的容量，允许在1s内完成的最大请求数。
+                redis-rate-limiter.burstCapacity: 1
+                # 每次请求消耗令牌的数量
+                redis-rate-limiter.requestedTokens: 1
+
+        - id: payment_route2
+          #uri: http://localhost:8001
+          uri: lb://cloud-payment-service
+          predicates:
+          - Path=/payment/lb/** #断言,路径相匹配的进行路由
+          - After=2020-03-12T15:44:15.064+08:00[Asia/Shanghai]
+          #- Cookie=username,eiletxie   #带Cookie，并且username的值为eiletxie
+          #- Header=X-Request-Id,\d+ #请求头要有 X-Request-Id属性并且值为整数的正则表达式
+
+# hystrix 信号量隔离，2秒后自动超时
+#hystrix:
+#  command:
+#    default:
+#      execution:
+#        isolation:
+#          strategy: SEMAPHORE
+#          thread:
+#            timeoutInMilliseconds: 2000
+
+eureka:
+#  instance:
+#    hostname: cloud-gateway-service
+  client:
+    fetch-registry: true
+    register-with-eureka: true
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka/
+  instance:
+    instance-id: gateway9527
+    prefer-ip-address: true
